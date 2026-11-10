@@ -113,7 +113,7 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(tx))}catch(e){}};
 let bud={};try{bud=JSON.parse(localStorage.getItem('ekonomi.budget')||'{}')}catch(e){}
 const saveB=()=>{try{localStorage.setItem('ekonomi.budget',JSON.stringify(bud))}catch(e){}};
 const SPEL=['Spel','Spel (vänner)'];
-let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1};try{waste=JSON.parse(localStorage.getItem('ekonomi.waste'))||waste}catch(e){}
+let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1,Nöje:1};try{waste=JSON.parse(localStorage.getItem('ekonomi.waste'))||waste}catch(e){}
 const saveW=()=>{try{localStorage.setItem('ekonomi.waste',JSON.stringify(waste))}catch(e){}};
 const today=new Date().toISOString().slice(0,10);
 $('date').value=today; $('month').value=today.slice(0,7);
@@ -195,11 +195,17 @@ $('exp').onclick=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ekonomi.csv';a.click();
   try{navigator.clipboard.writeText(csv).then(()=>say('Backup kopierad till urklipp. Klistra in i en anteckning eller fil för att spara.'),()=>{})}catch(e){}};
 // --- Automatisk import av bank-CSV (Swedbank, SEB, Handelsbanken, Nordea, ICA m.fl.) ---
-const NEUTRAL=['Överföring','Sparande']; // räknas inte som inkomst/utgift
+const NEUTRAL=['Överföring','Sparande','Swish personer']; // räknas inte som inkomst/utgift
 const RULES=[
- [/unibet|betsson|svenska spel|atg\b|casino|bet365|leovegas/i,'Spel'],
+ [/unibet|betsson|svenska spel|atg\b|casino|bet365|leovegas|rocker|mr gre|betmgm|clearon|sport & casi/i,'Spel'],
  [/[oö]verf[oö]ring/i,'Överföring'],
  [/avanza|nordnet|sparande/i,'Sparande'],
+ [/zalando|klarna|boozt|amazon|svea i/i,'Shopping'],
+ [/skistar|studenbalen|hajper|uhr un/i,'Nöje'],
+ [/\bsj ab|v[aä]sttrafik|s[oö]rmlandstra|m[aä]lardalstra|snapit|aimo/i,'Transport'],
+ [/plick|sm bar|pitchers|happy|v[aä]rjans|qopla|caf[eé]/i,'Restaurang'],
+ [/comviq/i,'Boende'],
+ [/(\+46\d{6,})|swish (mottag|skicka)/i,'Swish personer'],
  [/swish/i,'Swish'],
  [/paypal/i,'PayPal'],
  [/aimo|easypark|parkering/i,'Transport'],
@@ -272,11 +278,15 @@ $('list').addEventListener('click',e=>{const td=e.target.closest('.catc');if(!td
   const done=()=>{const c=inp.value.trim();if(c&&c!==t.cat)setCat(t,c);else render()};
   td.querySelector('button').onclick=done;inp.onkeydown=k=>{if(k.key==='Enter')done();if(k.key==='Escape')render()}});
 function setCat(t,c){
-  const m=merchant(t.note||'');let n=0;tx.forEach(x=>{if(merchant(x.note||'')===m){x.cat=c;x.merchant=m;n++}});save();render();say(n+' rader ändrade till '+c+'. Appen kommer ihåg det till nästa import.')}
+  const m=merchant(t.note||'');let n=0;tx.forEach(x=>{if(merchant(x.note||'')===m){x.cat=c;x.merchant=m;x.manual=1;n++}});save();render();say(n+' rader ändrade till '+c+'. Appen kommer ihåg det till nästa import.')}
 // Förinlagda transaktioner (om sidan har sådana) läggs in första gången
 (()=>{const R=window.SEED_ROWS;if(!R)return;let done=false;try{done=localStorage.getItem('ekonomi.seeded')==='1'}catch(e){}
   if(done&&tx.length)return;addRows(R.map(([date,text,amt])=>({date,text,amt})));save();try{localStorage.setItem('ekonomi.seeded','1')}catch(e){}
   const last=tx.map(t=>t.date).sort().pop();if(last)$('month').value=last.slice(0,7)})();
+// Kategorisera om äldre rader med de nya reglerna (rader du ändrat själv behålls)
+(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='3'||!tx.length)return;
+  const L={};tx.forEach(t=>{if(t.manual)L[merchant(t.note||'')]=t.cat});
+  tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','3')}catch(e){}})();
 $('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length){say('Hittade inga transaktioner i texten.');return}
   const {n,dup}=addRows(rows);save();$('paste').value='';render();say(n+' transaktioner importerade'+(dup?' ('+dup+' dubletter hoppades över)':''))};
 render();
