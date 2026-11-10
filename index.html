@@ -139,8 +139,8 @@ let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1,Nöje:1};try{waste
 const saveW=()=>{try{localStorage.setItem('ekonomi.waste',JSON.stringify(waste))}catch(e){}};
 
 // ---- Kategorier ----
-const INC=['Lön','CSN','Studiehjälp','Insättning','Övrig inkomst'];
-const IGN={'Swish personer':['Swish mellan personer','Går inte att skilja dina pengar från kompisars, så det räknas inte.'],
+const INC=['Lön','CSN','Studiehjälp','Insättning','Försäljning','Avanza-uttag','Övrig inkomst'];
+const IGN={'Swish personer':['Swish mellan personer','Går inte att skilja dina pengar från kompisars, så det räknas inte. Klicka här och använd "ändra kategori" på ett nummer (t.ex. till Försäljning) för det du sålt på Plick eller Vinted.'],
   'Spel':['Spel (Unibet m.fl.)','Insättningar och utbetalningar. Räknas inte.'],
   'Spel (vänner)':['Spel (Unibet m.fl.)',''],
   'Sparande':['Sparande (Avanza)','Pengar du flyttat till sparande.'],
@@ -150,23 +150,23 @@ const SHARED=[
  [/[oö]verf[oö]ring/i,'Överföring'],
  [/avanza|nordnet/i,'Sparande'],
  [/(\+46\d{6,})|swish (mottag|skicka)/i,'Swish personer']];
-const INRULES=[[/csn/i,'CSN'],[/studieh[aä]lp/i,'Studiehjälp'],[/l[oö]n\b|salary/i,'Lön'],[/ins[aä]ttning/i,'Insättning']];
+const INRULES=[[/csn/i,'CSN'],[/studieh[aä]lp/i,'Studiehjälp'],[/l[oö]n\b|salary/i,'Lön'],[/ins[aä]ttning/i,'Insättning'],[/avanza/i,'Avanza-uttag']];
 const RULES=[
  [/studentresor|best western|hotel|booking/i,'Resor'],
  [/skistar|studenbalen|hajper|uhr un|biograf|sf bio|svenska film/i,'Nöje'],
  [/\bsj\b|v[aä]sttrafik|s[oö]rmlandstra|m[aä]lardalstra|snapit|aimo|easypark|parkering|circle k|okq8|preem|ingo|shell|uber|bolt|\bsl\b|skanetrafiken/i,'Transport'],
- [/plick|sm bar|pitchers|happy|v[aä]rjans|qopla|caf[eé]|takterrass|chopchop|corerestau|max burgers|burger king|mcdonald|kebab|pizz|sushi|foodora|wolt|restaurang|espresso|likaa/i,'Restaurang'],
+ [/aktiebolaget|plick|sm bar|pitchers|happy|v[aä]rjans|qopla|caf[eé]|takterrass|chopchop|corerestau|max burgers|burger king|mcdonald|kebab|pizz|sushi|foodora|wolt|restaurang|espresso|likaa/i,'Restaurang'],
  [/comviq|telia|tele2|tre\b|bredband|vattenfall|ellevio|fortum|hyra|brf\b|bostad/i,'Boende'],
  [/netflix|spotify|hbo|viaplay|disney|youtube|storytel|steam|apple\.com/i,'Prenumerationer'],
  [/apotek|kronan|v[aå]rd|tandl|gym|sats\b|friskis|synsam/i,'Hälsa'],
  [/paypal/i,'PayPal'],
  [/ica\b|maxi ica|coop|willys|hemk[oö]p|lidl|citygross|tempo|everyday/i,'Mat'],
- [/zalando|klarna|boozt|amazon|svea i|power |jd_sweden|nike|stadium|hm se|h&m|ikea|clas ohlson|elgiganten|netonnet|webhallen|kjell|biltema|mister york/i,'Shopping']];
+ [/vinted|zalando|klarna|boozt|amazon|svea i|power |jd_sweden|nike|stadium|hm se|h&m|ikea|clas ohlson|elgiganten|netonnet|webhallen|kjell|biltema|mister york/i,'Shopping']];
 const merchant=t=>{const ph=t.match(/\+46\d{6,}/);if(ph)return ph[0];return t.toLowerCase().replace(/[0-9*\/.,-]+/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,2).join(' ')};
 function autoCat(text,isIn,L){
   const k=merchant(text);if(L[k])return L[k];
-  for(const [re,c] of SHARED)if(re.test(text))return c;
   if(isIn)for(const [re,c] of INRULES)if(re.test(text))return c;
+  for(const [re,c] of SHARED)if(re.test(text))return c;
   for(const [re,c] of RULES)if(re.test(text))return c;
   return isIn?'Övrig inkomst':'Övrigt';
 }
@@ -183,15 +183,15 @@ function calc(list){
   const W=Object.entries(spend).reduce((s,[c,v])=>s+(waste[c]?Math.max(v,0):0),0);
   return {inc,spend,ign,I,S,W,net:I-S};
 }
-const lab=t=>{const s=(t.note||t.cat).replace(/swish/ig,'').replace(/[\d*\/]+/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,3).join(' ');return s||t.note||t.cat};
+const lab=t=>{const ph=(t.note||'').match(/\+46\d{6,}/);if(ph)return ph[0].replace('+46','0');const s=(t.note||t.cat).replace(/swish/ig,'').replace(/[\d*\/]+/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,3).join(' ');return s||t.note||t.cat};
 const periodList=()=>{const p=$('period').value;return p==='all'?tx:tx.filter(t=>t.date.startsWith(p))};
 const open=new Set();
 
-function groupHtml(list,pred){
+function groupHtml(list,pred,max=10){
   const g={};list.filter(pred).forEach(t=>{const k=lab(t),o=g[k]||(g[k]={sum:0,n:0,id:t.id});o.sum+=t.type==='out'?-t.amount:t.amount;o.n++});
   const rows=Object.entries(g).sort((a,b)=>Math.abs(b[1].sum)-Math.abs(a[1].sum));
-  return '<div class="det">'+rows.slice(0,10).map(([k,o])=>`<div><span class="l">${esc(k)} <span class="mute">${o.n>1?o.n+' st':''}</span><button class="lnk" data-edit="${o.id}">ändra kategori</button></span><span class="a">${fmt(Math.abs(o.sum))}</span></div>`).join('')
-   +(rows.length>10?`<div class="mute"><span>… och ${rows.length-10} till</span></div>`:'')+'</div>';
+  return '<div class="det">'+rows.slice(0,max).map(([k,o])=>`<div><span class="l">${esc(k)} <span class="mute">${o.n>1?o.n+' st':''}</span><button class="lnk" data-edit="${o.id}">ändra kategori</button></span><span class="a ${o.sum>0?'in':'out'}">${o.sum>0?'+':'−'}${fmt(Math.abs(o.sum))}</span></div>`).join('')
+   +(rows.length>max?`<div class="mute"><span>… och ${rows.length-max} till</span></div>`:'')+'</div>';
 }
 function rowHtml(key,name,val,total,cls,det,extra){
   const pct=total>0?Math.round(Math.max(val,0)/total*100):0;
@@ -218,7 +218,7 @@ function render(){
     return B?h.replace(/width:\d+%/,`width:${Math.min(100,r*100)}%`):h}).join(''):'<div class="empty">Inga utgifter denna period.</div>';
   const ig=Object.entries(C.ign);
   $('ignList').innerHTML=ig.length?ig.map(([n,o])=>{const k='x:'+n;
-    const rows=open.has(k)?groupHtml(list,t=>IGN[t.cat]&&IGN[t.cat][0]===n):'';
+    const rows=open.has(k)?groupHtml(list,t=>IGN[t.cat]&&IGN[t.cat][0]===n,40):'';
     return `<div class="item"><div class="ih" data-k="${esc(k)}"><span class="nm">${esc(n)}</span><span class="am mute">in ${fmt(o.in)} · ut ${fmt(o.out)}</span><span class="sm mute" style="grid-column:1/-1">${esc(o.why||'')}</span></div>${rows}</div>`}).join(''):'<div class="empty">Inget.</div>';
   const ms=months.slice().reverse();
   $('ov').innerHTML='<tr><th>Månad</th><th class="n">Fick in</th><th class="n">Spenderade</th><th class="n">Kvar</th><th class="n">Slöseri</th></tr>'+ms.map(m=>{const s=calc(tx.filter(t=>t.date.startsWith(m)));
@@ -308,8 +308,8 @@ $('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length)
 // ---- Start ----
 (()=>{const R=window.SEED_ROWS;if(!R)return;let done=false;try{done=localStorage.getItem('ekonomi.seeded')==='1'}catch(e){}
   if(done&&tx.length)return;addRows(R.map(([date,text,amt])=>({date,text,amt})));save();try{localStorage.setItem('ekonomi.seeded','1')}catch(e){}})();
-(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='4'||!tx.length)return;
-  const L=manualMap();tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','4')}catch(e){}})();
+(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='5'||!tx.length)return;
+  const L=manualMap();tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','5')}catch(e){}})();
 render();
 </script>
 </body>
