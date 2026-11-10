@@ -94,11 +94,12 @@ function shift(d){const [y,m]=$('month').value.split('-').map(Number);const dt=n
 function render(){
   const m=$('month').value;
   const cur=tx.filter(t=>t.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date));
-  const inc=cur.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
-  const out=cur.filter(t=>t.type==='out').reduce((s,t)=>s+t.amount,0);
+  const real=cur.filter(t=>!NEUTRAL.includes(t.cat));
+  const inc=real.filter(t=>t.type==='in').reduce((s,t)=>s+t.amount,0);
+  const out=real.filter(t=>t.type==='out').reduce((s,t)=>s+t.amount,0);
   $('kIn').textContent=fmt(inc);$('kOut').textContent=fmt(out);
   const net=$('kNet');net.textContent=fmt(inc-out);net.className=inc-out<0?'out':'in';
-  const by={};cur.filter(t=>t.type==='out').forEach(t=>by[t.cat]=(by[t.cat]||0)+t.amount);
+  const by={};real.filter(t=>t.type==='out').forEach(t=>by[t.cat]=(by[t.cat]||0)+t.amount);
   const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]);
   $('bycat').innerHTML=rows.length?'<table>'+rows.map(([c,v])=>
     `<tr><td>${esc(c)}</td><td style="width:40%"><div class="bw"><div class="bar" style="width:${v/out*100}%"></div></div></td><td class="n">${fmt(v)}</td><td class="n">${Math.round(v/out*100)}%</td></tr>`).join('')+'</table>'
@@ -121,8 +122,13 @@ $('exp').onclick=()=>{
   const csv='datum,typ,kategori,belopp,anteckning\n'+tx.map(t=>[t.date,t.type==='in'?'inkomst':'utgift',q(t.cat),t.amount,q(t.note||'')].join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ekonomi.csv';a.click()};
 // --- Automatisk import av bank-CSV (Swedbank, SEB, Handelsbanken, Nordea, ICA m.fl.) ---
+const NEUTRAL=['Överföring','Sparande']; // räknas inte som inkomst/utgift
 const RULES=[
  [/unibet|betsson|svenska spel|atg\b|casino|bet365|leovegas/i,'Spel'],
+ [/[oö]verf[oö]ring/i,'Överföring'],
+ [/avanza|nordnet|sparande/i,'Sparande'],
+ [/swish/i,'Swish'],
+ [/paypal/i,'PayPal'],
  [/aimo|easypark|parkering/i,'Transport'],
  [/ica|coop|willys|hemk[oö]p|lidl|citygross|mat\b|tempo/i,'Mat'],
  [/sl\b|sj\b|ul\b|vasttrafik|västtrafik|skanetrafiken|circle k|okq8|preem|ingo|shell|parkering|uber|bolt/i,'Transport'],
