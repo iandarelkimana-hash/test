@@ -73,6 +73,7 @@ td.n,th.n{text-align:right;white-space:nowrap}
     <button class="sec" id="exp">Exportera CSV</button>
     <label class="sec" style="padding:8px;border:1px solid var(--line);border-radius:8px;cursor:pointer">Importera bankfil (CSV)<input type="file" id="imp" accept=".csv" hidden></label>
   </div>
+  <details style="margin-top:12px"><summary>Klistra in från internetbanken</summary><textarea id="paste" rows="6" style="width:100%;margin-top:8px" placeholder="Markera transaktionslistan på bankens sida, kopiera och klistra in här"></textarea><button id="pbtn" style="margin-top:8px">Importera inklistrad text</button></details>
   <p style="color:var(--mute);font-size:.85rem;margin:8px 0 0">Datan sparas bara i din webbläsare. Importera din banks CSV-export så kategoriseras allt automatiskt. Dubbelklicka på en rad för att ändra kategori – appen lär sig det till nästa gång.</p>
 </div>
 </main>
@@ -121,6 +122,8 @@ $('exp').onclick=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ekonomi.csv';a.click()};
 // --- Automatisk import av bank-CSV (Swedbank, SEB, Handelsbanken, Nordea, ICA m.fl.) ---
 const RULES=[
+ [/unibet|betsson|svenska spel|atg\b|casino|bet365|leovegas/i,'Spel'],
+ [/aimo|easypark|parkering/i,'Transport'],
  [/ica|coop|willys|hemk[oö]p|lidl|citygross|mat\b|tempo/i,'Mat'],
  [/sl\b|sj\b|ul\b|vasttrafik|västtrafik|skanetrafiken|circle k|okq8|preem|ingo|shell|parkering|uber|bolt/i,'Transport'],
  [/hyra|avgift|brf|bostad|el\b|vattenfall|ellevio|fortum|bredband|telia|tele2|tre\b|comviq/i,'Boende'],
@@ -139,6 +142,30 @@ function autoCat(text,isIn,L){
 }
 const num=v=>parseFloat(String(v).replace(/\s| /g,'').replace(',','.'));
 function splitLine(l,d){const r=[];let c='',q=false;for(const ch of l){if(ch=='"')q=!q;else if(ch==d&&!q){r.push(c);c=''}else c+=ch}r.push(c);return r}
+
+function addRows(rows){
+  const L=learned(),have={},cnt={};
+  tx.forEach(t=>{const k=t.date+'|'+t.raw+'|'+t.signed;have[k]=(have[k]||0)+1});
+  let n=0,dup=0;
+  for(const {date,text,amt} of rows){
+    if(!date||isNaN(amt)||amt===0)continue;
+    const k=date+'|'+text+'|'+amt;cnt[k]=(cnt[k]||0)+1;
+    if(cnt[k]<=(have[k]||0)){dup++;continue}
+    const isIn=amt>0;
+    tx.push({id:Date.now()+Math.random(),type:isIn?'in':'out',amount:Math.abs(amt),cat:autoCat(text,isIn,L),date,note:text,raw:text,signed:amt,merchant:merchant(text)});n++;
+  }
+  return {n,dup};
+}
+// Klistra in text kopierad från internetbankens transaktionslista (Swedbank/Sparbanken)
+function parsePasted(txt){
+  const L=txt.split(/\r?\n/).map(x=>x.trim()).filter(x=>x),D=/^\d{4}-\d{2}-\d{2}$/,A=/^[-−+]?\d[\d\s ]*,\d{2}$/;
+  const am=v=>num(v.replace('−','-')),rows=[];
+  for(let i=0;i<L.length-3;i++){
+    if(D.test(L[i+1])&&D.test(L[i+2])&&A.test(L[i+3])&&!D.test(L[i])&&!A.test(L[i]))
+      {rows.push({date:L[i+1],text:L[i],amt:am(L[i+3])});i+=3}
+  }
+  return rows; // reserverade rader (bara ett datum) hoppas över – de dyker upp som bokförda senare
+}
 $('imp').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   let lines=(await f.text()).replace(/^﻿/,'').split(/\r?\n/).filter(l=>l.trim());
@@ -152,20 +179,15 @@ $('imp').onchange=async e=>{
   if(iD<0)iD=body[0].findIndex(c=>/\d{4}-\d{2}-\d{2}/.test(c));
   if(iA<0)iA=body[0].map((c,i)=>/^-?[\d\s.,]+$/.test(c.trim())&&i!==iD?i:-1).filter(i=>i>=0).pop();
   if(iT<0)iT=body[0].findIndex((c,i)=>i!==iD&&i!==iA&&/[a-zA-ZåäöÅÄÖ]/.test(c));
-  const L=learned(),seen=new Set(tx.map(t=>t.date+'|'+t.raw+'|'+t.signed));
-  let n=0,dup=0;
-  for(const r of body){
-    const date=(r[iD]||'').match(/\d{4}-\d{2}-\d{2}/)?.[0],amt=num(r[iA]),text=(r[iT]||'').trim();
-    if(!date||isNaN(amt)||amt===0)continue;
-    const key=date+'|'+text+'|'+amt;if(seen.has(key)){dup++;continue}seen.add(key);
-    const isIn=amt>0;
-    tx.push({id:Date.now()+Math.random(),type:isIn?'in':'out',amount:Math.abs(amt),cat:autoCat(text,isIn,L),date,note:text,raw:text,signed:amt,merchant:merchant(text)});n++;
-  }
+  const rows=[];for(const r of body){const date=(r[iD]||'').match(/\d{4}-\d{2}-\d{2}/)?.[0];rows.push({date,text:(r[iT]||'').trim(),amt:num(r[iA])})}
+  const {n,dup}=addRows(rows);
   save();render();alert(n+' transaktioner importerade och kategoriserade automatiskt'+(dup?' ('+dup+' dubletter hoppades över)':''));e.target.value=''};
 // Ändrar du kategori på en rad lär sig appen det för framtida import
 $('list').ondblclick=e=>{const tr=e.target.closest('tr'),id=tr&&tr.querySelector('.del')?.dataset.id;if(!id)return;
   const t=tx.find(x=>String(x.id)===id),c=prompt('Ny kategori för "'+t.note+'":',t.cat);if(!c)return;
   const m=t.merchant||merchant(t.note||'');tx.forEach(x=>{if((x.merchant||merchant(x.note||''))===m){x.cat=c.trim();x.merchant=m}});save();render()};
+$('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length){alert('Hittade inga transaktioner i texten.');return}
+  const {n,dup}=addRows(rows);save();$('paste').value='';render();alert(n+' transaktioner importerade'+(dup?' ('+dup+' dubletter hoppades över)':''))};
 render();
 </script>
 </body>
