@@ -139,7 +139,7 @@ let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1,Nöje:1};try{waste
 const saveW=()=>{try{localStorage.setItem('ekonomi.waste',JSON.stringify(waste))}catch(e){}};
 
 // ---- Kategorier ----
-const INC=['Lön','CSN','Studiehjälp','Insättning','Försäljning','Avanza-uttag','Övrig inkomst'];
+const INC=['Lön','CSN','Studiehjälp','Insättning','Rocker','Försäljning','Avanza-uttag','Övrig inkomst'];
 const IGN={'Swish personer':['Swish mellan personer','Går inte att skilja dina pengar från kompisars, så det räknas inte. Klicka här och använd "ändra kategori" på ett nummer (t.ex. till Försäljning) för det du sålt på Plick eller Vinted.'],
   'Spel':['Spel (Unibet m.fl.)','Insättningar och utbetalningar. Räknas inte.'],
   'Spel (vänner)':['Spel (Unibet m.fl.)',''],
@@ -150,7 +150,7 @@ const SHARED=[
  [/[oö]verf[oö]ring/i,'Överföring'],
  [/avanza|nordnet/i,'Sparande'],
  [/(\+46\d{6,})|swish (mottag|skicka)/i,'Swish personer']];
-const INRULES=[[/csn/i,'CSN'],[/studieh[aä]lp/i,'Studiehjälp'],[/l[oö]n\b|salary/i,'Lön'],[/ins[aä]ttning/i,'Insättning'],[/avanza/i,'Avanza-uttag']];
+const INRULES=[[/csn/i,'CSN'],[/studieh[aä]lp/i,'Studiehjälp'],[/l[oö]n\b|salary/i,'Lön'],[/ins[aä]ttning/i,'Insättning'],[/avanza/i,'Avanza-uttag'],[/rocker/i,'Rocker']];
 const RULES=[
  [/studentresor|best western|hotel|booking/i,'Resor'],
  [/skistar|studenbalen|hajper|uhr un|biograf|sf bio|svenska film/i,'Nöje'],
@@ -308,8 +308,8 @@ $('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length)
 // ---- Start ----
 (()=>{const R=window.SEED_ROWS;if(!R)return;let done=false;try{done=localStorage.getItem('ekonomi.seeded')==='1'}catch(e){}
   if(done&&tx.length)return;addRows(R.map(([date,text,amt])=>({date,text,amt})));save();try{localStorage.setItem('ekonomi.seeded','1')}catch(e){}})();
-(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='5'||!tx.length)return;
-  const L=manualMap();tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','5')}catch(e){}})();
+(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='6'||!tx.length)return;
+  const L=manualMap();tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','6')}catch(e){}})();
 render();
 </script>
 </body>
