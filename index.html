@@ -52,8 +52,8 @@ td.n,th.n{text-align:right;white-space:nowrap}
 <div class="card grid">
   <div class="kpi"><small>Inkomster</small><b class="in" id="kIn"></b></div>
   <div class="kpi"><small>Utgifter</small><b class="out" id="kOut"></b></div>
-  <div class="kpi"><small>Spel netto</small><b id="kSpel"></b></div>
   <div class="kpi"><small>Kvar</small><b id="kNet"></b></div>
+  <div class="kpi"><small>Slöseri</small><b class="out" id="kWaste"></b></div>
 </div>
 <div class="card warn" id="warn" hidden></div>
 
@@ -73,7 +73,8 @@ td.n,th.n{text-align:right;white-space:nowrap}
 <div class="card">
   <h2>Utgifter per kategori</h2>
   <div id="bycat"></div>
-  <p class="sm" style="margin:8px 0 0">Överföringar mellan egna konton och sparande räknas inte. Spel visas som netto (insatser minus vinster och Swish från vänner).</p>
+  <p class="sm" style="margin:8px 0 0">Överföringar mellan egna konton, sparande och spel räknas inte. Klicka på <b>behov</b>/<b>slöseri</b> för att ändra hur en kategori räknas.</p>
+  <div id="topw" style="margin-top:10px"></div><p hidden></p>
   <details style="margin-top:10px"><summary>Budgetar</summary>
     <form id="bf" class="row" style="margin-top:8px">
       <input id="bcat" list="cats" placeholder="Kategori" required>
@@ -112,6 +113,8 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(tx))}catch(e){}};
 let bud={};try{bud=JSON.parse(localStorage.getItem('ekonomi.budget')||'{}')}catch(e){}
 const saveB=()=>{try{localStorage.setItem('ekonomi.budget',JSON.stringify(bud))}catch(e){}};
 const SPEL=['Spel','Spel (vänner)'];
+let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1};try{waste=JSON.parse(localStorage.getItem('ekonomi.waste'))||waste}catch(e){}
+const saveW=()=>{try{localStorage.setItem('ekonomi.waste',JSON.stringify(waste))}catch(e){}};
 const today=new Date().toISOString().slice(0,10);
 $('date').value=today; $('month').value=today.slice(0,7);
 
@@ -123,13 +126,12 @@ function stats(list){
   const real=list.filter(t=>!NEUTRAL.includes(t.cat)&&!SPEL.includes(t.cat));
   const sum=(a,ty)=>a.filter(t=>t.type===ty).reduce((s,t)=>s+t.amount,0);
   const sp=list.filter(t=>SPEL.includes(t.cat));
-  const inc=sum(real,'in'),out=sum(real,'out'),spel=sum(sp,'out')-sum(sp,'in');
-  return {real,inc,out,spel,net:inc-out-spel};
+  const inc=sum(real,'in'),out=sum(real,'out'),ws=sum(real.filter(t=>waste[t.cat]),'out');
+  return {real,inc,out,waste:ws,net:inc-out};
 }
 function monthExp(list){ // kategori -> utgift (spel som netto)
-  const {real,spel}=stats(list),by={};
+  const {real}=stats(list),by={};
   real.filter(t=>t.type==='out').forEach(t=>by[t.cat]=(by[t.cat]||0)+t.amount);
-  if(spel>0)by['Spel']=spel;
   return by;
 }
 const col=v=>v<0?'out':'in';
@@ -138,7 +140,10 @@ function render(){
   const cur=tx.filter(t=>t.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date));
   const S=stats(cur);
   $('kIn').textContent=fmt(S.inc);$('kOut').textContent=fmt(S.out);
-  $('kSpel').textContent=fmt(S.spel);$('kSpel').className=S.spel>0?'out':'in';
+  $('kWaste').textContent=fmt(S.waste)+(S.out?' ('+Math.round(S.waste/S.out*100)+'%)':'');
+  const tw={};S.real.filter(t=>t.type==='out'&&waste[t.cat]).forEach(t=>{const k=(t.note||t.cat).replace(/\d{3,}/g,'').trim();tw[k]=(tw[k]||0)+t.amount});
+  const top=Object.entries(tw).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  $('topw').innerHTML=top.length?'<b>Största slöseriet denna månad</b><br><span class="sm">'+top.map(([k,v])=>esc(k)+' '+fmt(v)).join(' · ')+'</span>':'';
   const net=$('kNet');net.textContent=fmt(S.net);net.className=col(S.net);
   // kategorier + budget
   const by=monthExp(cur);Object.keys(bud).forEach(c=>{if(!(c in by))by[c]=0});
@@ -150,21 +155,22 @@ function render(){
     if(B){const r=v/B;bar=`<div class="bar ${r>1?'':r>=.8?'mid':'ok'}" style="width:${Math.min(r,1)*100}%;${r>1?'':''}"></div>`;
       txt=`${fmt(v)} / ${fmt(B)}`;if(r>1)warns.push(`🔴 ${c}: ${fmt(v-B)} över budget`);else if(r>=.8)warns.push(`🟠 ${c}: ${Math.round(r*100)}% av budgeten använd`)}
     else{bar=`<div class="bar" style="width:${v/tot*100}%"></div>`;txt=fmt(v)}
-    return `<tr><td>${esc(c)}</td><td style="width:38%"><div class="bw">${bar}</div></td><td class="n">${txt}</td></tr>`}).join('')+'</table>'
+    return `<tr><td>${esc(c)} <a href="#" class="sm" data-w="${esc(c)}">${waste[c]?'slöseri':'behov'}</a></td><td style="width:38%"><div class="bw">${bar}</div></td><td class="n">${txt}</td></tr>`}).join('')+'</table>'
     :'<div class="empty">Inga utgifter denna månad</div>';
   $('warn').hidden=!warns.length;$('warn').innerHTML=warns.length?'<b>Budget</b><br>'+warns.join('<br>'):'';
   $('blist').innerHTML=Object.entries(bud).map(([c,v])=>`<span class="sm">${esc(c)} ${fmt(v)} <a href="#" data-b="${esc(c)}">ta bort</a></span>`).join(' · ');
   // månadsöversikt
   const months=[...new Set(tx.map(t=>t.date.slice(0,7)))].sort();
-  $('ov').innerHTML='<tr><th>Månad</th><th class="n">Inkomst</th><th class="n">Utgift</th><th class="n">Spel netto</th><th class="n">Kvar</th></tr>'+months.map(mo=>{
+  $('ov').innerHTML='<tr><th>Månad</th><th class="n">Inkomst</th><th class="n">Utgift</th><th class="n">Slöseri</th><th class="n">Kvar</th></tr>'+months.map(mo=>{
     const s=stats(tx.filter(t=>t.date.startsWith(mo)));
-    return `<tr data-m="${mo}" style="cursor:pointer;${mo===m?'font-weight:600':''}"><td>${mo}</td><td class="n">${fmt(s.inc)}</td><td class="n">${fmt(s.out)}</td><td class="n ${s.spel>0?'out':''}">${fmt(s.spel)}</td><td class="n ${col(s.net)}">${fmt(s.net)}</td></tr>`}).join('');
+    return `<tr data-m="${mo}" style="cursor:pointer;${mo===m?'font-weight:600':''}"><td>${mo}</td><td class="n">${fmt(s.inc)}</td><td class="n">${fmt(s.out)}</td><td class="n out">${fmt(s.waste)}</td><td class="n ${col(s.net)}">${fmt(s.net)}</td></tr>`}).join('');
   $('list').innerHTML=cur.length?cur.map(t=>
     `<tr><td>${t.date.slice(5)}</td><td class="catc" data-id="${t.id}" title="Klicka för att byta kategori">${esc(t.cat)}<br><small style="color:var(--mute)">${esc(t.note||'')}</small></td>
      <td class="n ${t.type}">${t.type==='in'?'+':'−'}${fmt(t.amount)}</td><td><button class="del" data-id="${t.id}" title="Ta bort">✕</button></td></tr>`).join('')
     :'<tr><td class="empty">Inga transaktioner</td></tr>';
   $('cats').innerHTML=[...new Set(tx.map(t=>t.cat).concat(SPEL,NEUTRAL))].map(c=>`<option value="${esc(c)}">`).join('');
 }
+$('bycat').onclick=e=>{const c=e.target.dataset.w;if(c===undefined)return;e.preventDefault();if(waste[c])delete waste[c];else waste[c]=1;saveW();render()};
 $('bf').onsubmit=e=>{e.preventDefault();bud[$('bcat').value.trim()]=+$('bamt').value;saveB();$('bamt').value='';render()};
 $('blist').onclick=e=>{const c=e.target.dataset.b;if(c===undefined)return;e.preventDefault();delete bud[c];saveB();render()};
 $('ov').onclick=e=>{const tr=e.target.closest('tr[data-m]');if(tr){$('month').value=tr.dataset.m;render();scrollTo(0,0)}};
