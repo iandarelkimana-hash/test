@@ -68,6 +68,12 @@ summary{cursor:pointer;font-weight:600}
 </div>
 
 <div class="card">
+  <h2>Mina mål</h2>
+  <p class="sub">Det du vill spendera mindre på. Gränserna kan du ändra längre ned under Budget.</p>
+  <div id="goals"></div>
+</div>
+
+<div class="card">
   <h2>Varifrån fick jag pengar?</h2>
   <p class="sub">Klicka på en rad för att se exakt vad den består av.</p>
   <div id="inList"></div>
@@ -135,7 +141,7 @@ let tx=[];try{tx=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(tx))}catch(e){}};
 let bud={};try{bud=JSON.parse(localStorage.getItem('ekonomi.budget')||'{}')}catch(e){}
 const saveB=()=>{try{localStorage.setItem('ekonomi.budget',JSON.stringify(bud))}catch(e){}};
-let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1,Nöje:1};try{waste=JSON.parse(localStorage.getItem('ekonomi.waste'))||waste}catch(e){}
+let waste={Restaurang:1,Shopping:1,PayPal:1,Prenumerationer:1,Nöje:1,Parkering:1,Aktiebolaget:1};try{waste=JSON.parse(localStorage.getItem('ekonomi.waste'))||waste}catch(e){}
 const saveW=()=>{try{localStorage.setItem('ekonomi.waste',JSON.stringify(waste))}catch(e){}};
 
 // ---- Kategorier ----
@@ -152,10 +158,12 @@ const SHARED=[
  [/(\+46\d{6,})|swish (mottag|skicka)/i,'Swish personer']];
 const INRULES=[[/csn/i,'CSN'],[/studieh[aä]lp/i,'Studiehjälp'],[/l[oö]n\b|salary/i,'Lön'],[/ins[aä]ttning/i,'Insättning'],[/avanza/i,'Avanza-uttag'],[/rocker/i,'Rocker']];
 const RULES=[
+ [/aktiebolaget/i,'Aktiebolaget'],
+ [/aimo|easypark|parkering/i,'Parkering'],
  [/studentresor|best western|hotel|booking/i,'Resor'],
  [/skistar|studenbalen|hajper|uhr un|biograf|sf bio|svenska film/i,'Nöje'],
  [/\bsj\b|v[aä]sttrafik|s[oö]rmlandstra|m[aä]lardalstra|snapit|aimo|easypark|parkering|circle k|okq8|preem|ingo|shell|uber|bolt|\bsl\b|skanetrafiken/i,'Transport'],
- [/aktiebolaget|plick|sm bar|pitchers|happy|v[aä]rjans|qopla|caf[eé]|takterrass|chopchop|corerestau|max burgers|burger king|mcdonald|kebab|pizz|sushi|foodora|wolt|restaurang|espresso|likaa/i,'Restaurang'],
+ [/plick|sm bar|pitchers|happy|v[aä]rjans|qopla|caf[eé]|takterrass|chopchop|corerestau|max burgers|burger king|mcdonald|kebab|pizz|sushi|foodora|wolt|restaurang|espresso|likaa/i,'Restaurang'],
  [/comviq|telia|tele2|tre\b|bredband|vattenfall|ellevio|fortum|hyra|brf\b|bostad/i,'Boende'],
  [/netflix|spotify|hbo|viaplay|disney|youtube|storytel|steam|apple\.com/i,'Prenumerationer'],
  [/apotek|kronan|v[aå]rd|tandl|gym|sats\b|friskis|synsam/i,'Hälsa'],
@@ -206,6 +214,12 @@ function render(){
   $('kIn').textContent=fmt(C.I);$('kOut').textContent=fmt(C.S);
   $('kNet').textContent=fmt(C.net);$('kNet').className=C.net<0?'out':'in';
   $('kExtra').innerHTML=(C.S>0?`Varav <b class="out">slöseri ${fmt(C.W)}</b> (${Math.round(C.W/C.S*100)} % av det du spenderade).`:'')+(p==='all'?` Snitt per månad: ${fmt(C.I/nm)} in, ${fmt(C.S/nm)} ut.`:'');
+  const prevAvg=c=>{if(p==='all')return null;const [y,mo]=p.split('-').map(Number);let s=0,k=0;
+    for(let i=1;i<=3;i++){const d=new Date(y,mo-1-i,1),key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');const l=tx.filter(t=>t.date.startsWith(key));if(l.length){k++;s+=Math.max(calc(l).spend[c]||0,0)}}
+    return k?s/k:null};
+  const gl=Object.entries(bud);
+  $('goals').innerHTML=gl.length?gl.map(([c,B])=>{const v=Math.max(C.spend[c]||0,0)/(p==='all'?nm:1),r=v/B,pa=prevAvg(c);
+    return `<div class="item"><div class="ih" style="cursor:default"><span class="nm">${esc(c)}</span><span class="am">${fmt(v)} <span class="mute" style="font-weight:400">av ${fmt(B)}</span></span><div class="bw"><div class="bar ${r>1?'o':r>=.8?'m':'i'}" style="width:${Math.min(100,r*100)}%"></div></div><span class="sm ${r>1?'out':'in'}" style="grid-column:1/-1">${r>1?fmt(v-B)+' över gränsen':fmt(B-v)+' kvar att spendera'}${pa!==null?` <span class="mute">· snitt tre månader innan: ${fmt(pa)}</span>`:''}${p==='all'?' <span class="mute">(snitt per månad)</span>':''}</span></div></div>`}).join(''):'<div class="empty">Inga mål satta. Lägg till under Budget.</div>';
   const ins=Object.entries(C.inc).sort((a,b)=>b[1]-a[1]);
   $('inList').innerHTML=ins.length?ins.map(([c,v])=>rowHtml('in:'+c,c,v,C.I,'i',()=>groupHtml(list,t=>t.cat===c&&t.type==='in'))).join(''):'<div class="empty">Ingen inkomst denna period.</div>';
   const sp=Object.entries(C.spend).filter(([c,v])=>v>0.5).sort((a,b)=>b[1]-a[1]);
@@ -308,8 +322,8 @@ $('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length)
 // ---- Start ----
 (()=>{const R=window.SEED_ROWS;if(!R)return;let done=false;try{done=localStorage.getItem('ekonomi.seeded')==='1'}catch(e){}
   if(done&&tx.length)return;addRows(R.map(([date,text,amt])=>({date,text,amt})));save();try{localStorage.setItem('ekonomi.seeded','1')}catch(e){}})();
-(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='6'||!tx.length)return;
-  const L=manualMap();tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','6')}catch(e){}})();
+(()=>{let v='';try{v=localStorage.getItem('ekonomi.catver')}catch(e){}if(v==='7'||!tx.length)return;
+  const L=manualMap();tx.forEach(t=>{if(!t.manual&&t.raw)t.cat=autoCat(t.raw,t.type==='in',L)});save();try{localStorage.setItem('ekonomi.catver','7');Object.assign(bud,{Mat:2000,Parkering:100,Shopping:1000,Aktiebolaget:1000});saveB();waste.Parkering=1;waste.Aktiebolaget=1;saveW()}catch(e){}})();
 render();
 </script>
 </body>
