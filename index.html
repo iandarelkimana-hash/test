@@ -4,12 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Min ekonomi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--fg:#1c2330;--mute:#6b7280;--line:#e5e7eb;--in:#15803d;--out:#b91c1c;--acc:#2563eb}
-@media(prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1c212b;--fg:#e7eaf0;--mute:#9aa3b2;--line:#2c3340;--in:#4ade80;--out:#f87171;--acc:#60a5fa}}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12151b;--card:#1c212b;--fg:#e7eaf0;--mute:#9aa3b2;--line:#2c3340;--in:#4ade80;--out:#f87171;--acc:#60a5fa}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12151b;--card:#1c212b;--fg:#e7eaf0;--mute:#9aa3b2;--line:#2c3340;--in:#4ade80;--out:#f87171;--acc:#60a5fa}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
-main{max-width:820px;margin:0 auto;padding:16px}
+main{max-width:820px;margin:0 auto;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#msg{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;border-color:var(--acc)}
+.catc{cursor:pointer;text-decoration:underline dotted var(--mute)}
 h1{font-size:1.4rem;margin:0 0 12px}
 h2{font-size:1rem;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
@@ -36,7 +40,8 @@ td.n,th.n{text-align:right;white-space:nowrap}
 </head>
 <body>
 <main>
-<h1>💰 Min ekonomi</h1>
+<h1>Min ekonomi</h1>
+<div class="card row" id="msg" hidden><span id="msgt" style="flex:1"></span><button class="sec" id="msgx" aria-label="Stäng">✕</button></div>
 
 <div class="card row">
   <button class="sec" id="prev">←</button>
@@ -94,7 +99,7 @@ td.n,th.n{text-align:right;white-space:nowrap}
     <label class="sec" style="padding:8px;border:1px solid var(--line);border-radius:8px;cursor:pointer">Importera bankfil (CSV)<input type="file" id="imp" accept=".csv" hidden></label>
   </div>
   <details style="margin-top:12px"><summary>Klistra in från internetbanken</summary><textarea id="paste" rows="6" style="width:100%;margin-top:8px" placeholder="Markera transaktionslistan på bankens sida, kopiera och klistra in här"></textarea><button id="pbtn" style="margin-top:8px">Importera inklistrad text</button></details>
-  <p style="color:var(--mute);font-size:.85rem;margin:8px 0 0">Datan sparas bara i din webbläsare. Importera din banks CSV-export så kategoriseras allt automatiskt. Dubbelklicka på en rad för att ändra kategori – appen lär sig det till nästa gång.</p>
+  <p style="color:var(--mute);font-size:.85rem;margin:8px 0 0">Datan sparas bara i din webbläsare. Importera din banks CSV-export så kategoriseras allt automatiskt. Klicka på en kategori för att ändra den – appen lär sig det till nästa gång.</p>
 </div>
 </main>
 <script>
@@ -155,7 +160,7 @@ function render(){
     const s=stats(tx.filter(t=>t.date.startsWith(mo)));
     return `<tr data-m="${mo}" style="cursor:pointer;${mo===m?'font-weight:600':''}"><td>${mo}</td><td class="n">${fmt(s.inc)}</td><td class="n">${fmt(s.out)}</td><td class="n ${s.spel>0?'out':''}">${fmt(s.spel)}</td><td class="n ${col(s.net)}">${fmt(s.net)}</td></tr>`}).join('');
   $('list').innerHTML=cur.length?cur.map(t=>
-    `<tr><td>${t.date.slice(5)}</td><td>${esc(t.cat)}<br><small style="color:var(--mute)">${esc(t.note||'')}</small></td>
+    `<tr><td>${t.date.slice(5)}</td><td class="catc" data-id="${t.id}" title="Klicka för att byta kategori">${esc(t.cat)}<br><small style="color:var(--mute)">${esc(t.note||'')}</small></td>
      <td class="n ${t.type}">${t.type==='in'?'+':'−'}${fmt(t.amount)}</td><td><button class="del" data-id="${t.id}" title="Ta bort">✕</button></td></tr>`).join('')
     :'<tr><td class="empty">Inga transaktioner</td></tr>';
   $('cats').innerHTML=[...new Set(tx.map(t=>t.cat).concat(SPEL,NEUTRAL))].map(c=>`<option value="${esc(c)}">`).join('');
@@ -168,9 +173,9 @@ $('bsug').onclick=()=>{
   for(let i=1;i<=3;i++){const d=new Date(y,mo-1-i,1),key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     const l=tx.filter(t=>t.date.startsWith(key));if(!l.length)continue;k++;
     Object.entries(monthExp(l)).forEach(([c,v])=>agg[c]=(agg[c]||0)+v)}
-  if(!k){alert('Det finns ingen historik före vald månad.');return}
+  if(!k){say('Det finns ingen historik före vald månad.');return}
   Object.entries(agg).forEach(([c,v])=>{const avg=v/k;if(avg>=100)bud[c]=Math.round(avg*0.9/100)*100}); // 10 % under snittet
-  saveB();render();alert('Budgetar satta till 10 % under ditt snitt för '+k+' månader. Justera själv under "Budgetar".')};
+  saveB();render();say('Budgetar satta till 10 % under ditt snitt för '+k+' månader. Justera själv under "Budgetar".')};
 
 $('f').onsubmit=e=>{e.preventDefault();
   tx.push({id:Date.now()+Math.random(),type:$('type').value,amount:+$('amount').value,cat:$('cat').value.trim(),date:$('date').value,note:$('note').value.trim()});
@@ -181,7 +186,8 @@ $('prev').onclick=()=>shift(-1);$('next').onclick=()=>shift(1);$('month').onchan
 $('exp').onclick=()=>{
   const q=s=>'"'+String(s).replace(/"/g,'""')+'"';
   const csv='datum,typ,kategori,belopp,anteckning\n'+tx.map(t=>[t.date,t.type==='in'?'inkomst':'utgift',q(t.cat),t.amount,q(t.note||'')].join(',')).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ekonomi.csv';a.click()};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ekonomi.csv';a.click();
+  try{navigator.clipboard.writeText(csv).then(()=>say('Backup kopierad till urklipp. Klistra in i en anteckning eller fil för att spara.'),()=>{})}catch(e){}};
 // --- Automatisk import av bank-CSV (Swedbank, SEB, Handelsbanken, Nordea, ICA m.fl.) ---
 const NEUTRAL=['Överföring','Sparande']; // räknas inte som inkomst/utgift
 const RULES=[
@@ -248,13 +254,21 @@ $('imp').onchange=async e=>{
   if(iT<0)iT=body[0].findIndex((c,i)=>i!==iD&&i!==iA&&/[a-zA-ZåäöÅÄÖ]/.test(c));
   const rows=[];for(const r of body){const date=(r[iD]||'').match(/\d{4}-\d{2}-\d{2}/)?.[0];rows.push({date,text:(r[iT]||'').trim(),amt:num(r[iA])})}
   const {n,dup}=addRows(rows);
-  save();render();alert(n+' transaktioner importerade och kategoriserade automatiskt'+(dup?' ('+dup+' dubletter hoppades över)':''));e.target.value=''};
+  save();render();say(n+' transaktioner importerade och kategoriserade automatiskt'+(dup?' ('+dup+' dubletter hoppades över)':''));e.target.value=''};
 // Ändrar du kategori på en rad lär sig appen det för framtida import
-$('list').ondblclick=e=>{const tr=e.target.closest('tr'),id=tr&&tr.querySelector('.del')?.dataset.id;if(!id)return;
-  const t=tx.find(x=>String(x.id)===id),c=prompt('Ny kategori för "'+t.note+'":',t.cat);if(!c)return;
-  const m=merchant(t.note||'');tx.forEach(x=>{if(merchant(x.note||'')===m){x.cat=c.trim();x.merchant=m}});save();render()};
-$('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length){alert('Hittade inga transaktioner i texten.');return}
-  const {n,dup}=addRows(rows);save();$('paste').value='';render();alert(n+' transaktioner importerade'+(dup?' ('+dup+' dubletter hoppades över)':''))};
+function say(t){$('msgt').textContent=t;$('msg').hidden=false;clearTimeout(say.h);say.h=setTimeout(()=>$('msg').hidden=true,8000)}
+$('msgx').onclick=()=>$('msg').hidden=true;
+// Klicka på kategorin för att byta – gäller alla rader från samma handlare/telefonnummer
+$('list').addEventListener('click',e=>{const td=e.target.closest('.catc');if(!td||td.querySelector('input'))return;
+  const id=td.dataset.id,t=tx.find(x=>String(x.id)===id);
+  td.innerHTML=`<div class="row"><input list="cats" value="${esc(t.cat)}" style="flex:1;min-width:0"><button>OK</button></div><small style="color:var(--mute)">${esc(t.note||'')}</small>`;
+  const inp=td.querySelector('input');inp.focus();inp.select();
+  const done=()=>{const c=inp.value.trim();if(c&&c!==t.cat)setCat(t,c);else render()};
+  td.querySelector('button').onclick=done;inp.onkeydown=k=>{if(k.key==='Enter')done();if(k.key==='Escape')render()}});
+function setCat(t,c){
+  const m=merchant(t.note||'');let n=0;tx.forEach(x=>{if(merchant(x.note||'')===m){x.cat=c;x.merchant=m;n++}});save();render();say(n+' rader ändrade till '+c+'. Appen kommer ihåg det till nästa import.')}
+$('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length){say('Hittade inga transaktioner i texten.');return}
+  const {n,dup}=addRows(rows);save();$('paste').value='';render();say(n+' transaktioner importerade'+(dup?' ('+dup+' dubletter hoppades över)':''))};
 render();
 </script>
 </body>
