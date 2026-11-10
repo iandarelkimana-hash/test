@@ -267,6 +267,10 @@ $('list').addEventListener('click',e=>{const td=e.target.closest('.catc');if(!td
   td.querySelector('button').onclick=done;inp.onkeydown=k=>{if(k.key==='Enter')done();if(k.key==='Escape')render()}});
 function setCat(t,c){
   const m=merchant(t.note||'');let n=0;tx.forEach(x=>{if(merchant(x.note||'')===m){x.cat=c;x.merchant=m;n++}});save();render();say(n+' rader ändrade till '+c+'. Appen kommer ihåg det till nästa import.')}
+// Förinlagda transaktioner (om sidan har sådana) läggs in första gången
+(()=>{const R=window.SEED_ROWS;if(!R)return;let done=false;try{done=localStorage.getItem('ekonomi.seeded')==='1'}catch(e){}
+  if(done&&tx.length)return;addRows(R.map(([date,text,amt])=>({date,text,amt})));save();try{localStorage.setItem('ekonomi.seeded','1')}catch(e){}
+  const last=tx.map(t=>t.date).sort().pop();if(last)$('month').value=last.slice(0,7)})();
 $('pbtn').onclick=()=>{const rows=parsePasted($('paste').value);if(!rows.length){say('Hittade inga transaktioner i texten.');return}
   const {n,dup}=addRows(rows);save();$('paste').value='';render();say(n+' transaktioner importerade'+(dup?' ('+dup+' dubletter hoppades över)':''))};
 render();
